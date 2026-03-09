@@ -1,11 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
-@Controller('api/auth')
+@Controller('/api/auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
-  @Get('login')
+  constructor(private authSvc: AuthService) {}
+
+  @Get()
   public login(): string {
-    return this.authService.login();
+    return this.authSvc.login();
   }
 }

@@ -6,21 +6,20 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  //Uso de pipes de forma global
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Elimina propiedades no definidas en el DTO
+      whitelist: true,
     }),
   );
 
   const config = new DocumentBuilder()
-    .setTitle('')
-    .setDescription('')
-    .setVersion('')
+    .setTitle('API con vulnerabilidades')
+    .setDescription('Documentación de la API para pruebas de seguridad')
+    .setVersion('1.0.0')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document)
+  SwaggerModule.setup('api/docs', app, document);
 
   await app.listen(process.env.PORT ?? 3000);
 }
