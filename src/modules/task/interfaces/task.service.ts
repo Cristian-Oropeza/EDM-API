@@ -38,4 +38,6 @@ export class TaskService {
     const task = await this.prisma.task.delete({ where: { id } });
     return task;
   }
+
+  //Git commit -m "Configuración para tareas"
 }
