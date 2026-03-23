@@ -1,38 +1,47 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Controller, Post, Body, HttpException, HttpStatus, HttpCode,
+  UnauthorizedException
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { ApiTags } from '@nestjs/swagger';
 import { LoginDto } from '../dto/login.dto';
 
+@ApiTags('Auth')
 @Controller('/api/auth')
 export class AuthController {
-  constructor(private authSvc: AuthService) {}
+  constructor(private readonly authSvc: AuthService) {}
 
-  @Post("/login")
+  @Post('/login')
   @HttpCode(HttpStatus.OK)
-  public login(@Body() loginDto: LoginDto): string {
+  public async login(@Body() loginDto: LoginDto): Promise<any> {
     const { username, password } = loginDto;
 
-    // Verificar el usuario y contraseña
+    const user = await this.authSvc.getUserByUsername(username);
 
-    // Obtener informacion del usuario (payload)
+    if (!user) {
+      throw new UnauthorizedException('El usuario y/o contraseña son incorrectos');
+    }
 
-    // Generar el token JWT
+    if (await this.authSvc.checkPassword(password, user.password)) {
+      //Obtener la informacion del usuario (payload)
+      const {password, username, ...payload} = user;
 
-    // Devolver el token encriptado
-    
-    return this.authSvc.login();
+      //Generar el JWT
+      const access_token = await this.authSvc.generateJWT(payload);
+
+      //Generar el refresh Token
+      const refresh_token = await this.authSvc.generateJWT(payload, '7d');
+
+      //Devolver el JWT encriptado
+      return {
+        access_token,
+        refresh_token
+      }
+
+    } else{
+      throw new UnauthorizedException('El usuario y/o contraseña son incorrectos');
+    }
+
   }
-
-  @Get("/me")
-  public getProfile(){
-
-  }
-
-  @Post("/refresh")
-  public refreshToken(){
-
-  }
-
-  @Post("/logout")
-  public logout(){
-  }
+  
 }

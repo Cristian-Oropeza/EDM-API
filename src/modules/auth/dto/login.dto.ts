@@ -1,12 +1,15 @@
+import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty, IsString, IsStrongPassword, MaxLength, MinLength } from "class-validator";
 
 export class LoginDto{
+    @ApiProperty({ example: 'Cristian' })
     @IsNotEmpty()
     @IsString({ message: 'El nombre debe ser una cadena de texto' })
     @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
     @MaxLength(100, { message: 'El nombre no puede tener más de 100 caracteres' })
     username: string;
 
+    @ApiProperty({ example: 'Linux123!' })
     @IsNotEmpty()
     @IsString({ message: 'La contraseña debe ser una cadena de texto' })
     @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })

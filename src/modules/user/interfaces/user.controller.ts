@@ -9,31 +9,31 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  UseGuards,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user';
 import { User } from '../entities/user-entity';
-import { UtilService } from 'src/common/services/util.service';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('/api/user')
+@UseGuards(AuthGuard)
 export class UserController {
-  constructor(private userService: UserService,
-    private utilSvc: UtilService
-  ) {}
+  constructor(private readonly userService: UserService) {}
 
   @Get('')
-  async getAllUsers(): Promise<Omit<User, "password">[]> {
+  public async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken'>[]> {
     return await this.userService.getAllUsers();
   }
 
   @Get(':id')
   public async getUserById(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<Omit<User, "password">> {
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
     const result = await this.userService.getUserById(id);
 
-    if (result == undefined) {
+    if (!result) {
       throw new HttpException(
         `Usuario con ID ${id} no encontrado`,
         HttpStatus.NOT_FOUND,
@@ -44,28 +44,32 @@ export class UserController {
   }
 
   @Post('')
-  public async insertUser(@Body() user: CreateUserDto): Promise<User> {
-    const result = this.userService.insertUser(user);
-
-    if (!result) {
+  public async insertUser(
+    @Body() user: CreateUserDto,
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    try {
+      return await this.userService.insertUser(user);
+    } catch (error) {
       throw new HttpException(
         'Error al insertar el usuario',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-
-    const encryptedPassword = await this.utilSvc.hashPassword(user.password);
-    user.password = encryptedPassword;
-
-    return result;
   }
 
   @Put(':id')
-  public async updateTask(
+  public async updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body() task: UpdateUserDto,
-  ): Promise<User> {
-    return await this.userService.updateUser(id, task);
+    @Body() userUpdate: UpdateUserDto,
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    try {
+      return await this.userService.updateUser(id, userUpdate);
+    } catch (error) {
+      throw new HttpException(
+        `Error al actualizar el usuario con ID ${id}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete(':id')
@@ -74,12 +78,12 @@ export class UserController {
   ): Promise<boolean> {
     try {
       await this.userService.deleteUser(id);
+      return true;
     } catch (error) {
       throw new HttpException(
-        `Error al eliminar el usuario con ID ${id}, no se puede eliminar`,
+        `Error al eliminar el usuario con ID ${id}`,
         HttpStatus.NOT_FOUND,
       );
     }
-    return true;
   }
 }
