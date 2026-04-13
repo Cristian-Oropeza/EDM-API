@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from '../dto/login.dto';
+import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UtilService } from 'src/common/services/util.service';
 import { AuthGuard } from 'src/common/guards/auth.guard';
 
@@ -22,74 +23,70 @@ export class AuthController {
     private readonly utilSvc: UtilService,
   ) {}
 
-  // POST /auth/register - 201 Created
-
   @Post('/login')
   @HttpCode(HttpStatus.OK)
   public async login(@Body() loginDto: LoginDto): Promise<any> {
-    //es importante especificar que tipo de dato se esta retornando
     const { username, password } = loginDto;
 
-    // Verificar el usuario y contraseña
     const user = await this.authSvc.getUserByUsername(username);
-    if (!user)
-      throw new UnauthorizedException(
-        'El usuario y/o contraseña es incorrecto',
-      );
-
-    if (await this.utilSvc.checkPassword(password, user.password!)) {
-      // Obtener la informacion del usuario (payload)
-      const { password, username, ...payload } = user; //segmentacion dee que recibira el payload
-
-      // Generar el JWT
-      const access_token = await this.utilSvc.generateJWT(payload, '1h');
-
-      // Generar el refresh token
-      const refresh_token = await this.utilSvc.generateJWT(payload, '7d');
-      const hashRT = await this.utilSvc.hash(refresh_token);
-
-      // Agregar el hash al usuario
-      await this.authSvc.updateHash(user.id, hashRT);
-      payload.hash = hashRT;
-
-      // devolver el JWT encriptado
-      return {
-        access_token,
-        refresh_token: hashRT,
-      };
-    } else {
-      throw new UnauthorizedException(
-        'El usuario y/o contraseña son incorrectos',
-      );
+    if (!user) {
+      throw new UnauthorizedException('El usuario y/o contraseña es incorrecto');
     }
+
+    if (!(await this.utilSvc.checkPassword(password, user.password))) {
+      throw new UnauthorizedException('El usuario y/o contraseña son incorrectos');
+    }
+
+    const { password: _pwd, username: _usr, refreshToken: _rt, ...payload } = user;
+
+    const access_token = await this.utilSvc.generateJWT(payload, '1h');
+    const refresh_token = await this.utilSvc.generateJWT(payload, '7d');
+    const hashRT = await this.utilSvc.hashPassword(refresh_token);
+
+    await this.authSvc.updateHash(user.id, hashRT);
+
+    // devolver refresh_token (JWT), no hashRT (bcrypt)
+    return { access_token, refresh_token };
   }
 
   @Get('/me')
   @UseGuards(AuthGuard)
   public getProfile(@Req() request: any) {
-    const user = request['user'];
-    return user;
+    return request['user'];
   }
 
   @Post('/refresh')
-  @UseGuards(AuthGuard)
-  public async refreshToken(@Req() request: any) {
-    // Obtener el usuario en sesion
-    const sessionUser = request['user'];
-    const user = await this.authSvc.getUserById(sessionUser.id);
-    if (!user || !user.hash) throw new ForbiddenException('Acceso Denegado');
+  // sin AuthGuard, el refresh_token viene en el body
+  public async refreshToken(@Body() body: RefreshTokenDto): Promise<any> {
+    // Verificar que el refresh_token sea un JWT válido
+    let payload: any;
+    try {
+      payload = await this.utilSvc.getPayload(body.refreshToken);
+    } catch {
+      throw new ForbiddenException('Refresh token inválido o expirado');
+    }
 
-    //Comparar el token recibido con el token guardado
-    if (sessionUser.hash != user.hash)
-      throw new ForbiddenException('Token invalido');
+    // Buscar el usuario y verificar que tenga refreshToken guardado
+    const user = await this.authSvc.getUserById(payload.id);
+    if (!user || !user.refreshToken) {
+      throw new ForbiddenException('Acceso denegado');
+    }
 
-    const { password, username, ...payload } = user;
-    const access_token = await this.utilSvc.generateJWT(payload, '1h');
-    const refresh_token = await this.utilSvc.generateJWT(payload, '7d');
-    const hashRT = await this.utilSvc.hash(refresh_token);
+    // Fix: comparar el JWT del body contra el hash guardado en BD con bcrypt
+    const rtValido = await this.utilSvc.checkPassword(body.refreshToken, user.refreshToken);
+    if (!rtValido) {
+      throw new ForbiddenException('Refresh token inválido');
+    }
+
+    const { password: _pwd, username: _usr, refreshToken: _rt, ...newPayload } = user;
+
+    const access_token = await this.utilSvc.generateJWT(newPayload, '1h');
+    const refresh_token = await this.utilSvc.generateJWT(newPayload, '7d');
+    const hashRT = await this.utilSvc.hashPassword(refresh_token);
+
     await this.authSvc.updateHash(user.id, hashRT);
 
-    return { access_token, refresh_token: hashRT };
+    return { access_token, refresh_token };
   }
 
   @Post('/logout')
@@ -97,7 +94,6 @@ export class AuthController {
   @UseGuards(AuthGuard)
   public async logout(@Req() request: any) {
     const session = request['user'];
-    const user = await this.authSvc.updateHash(session.id, null);
-    return user;
+    await this.authSvc.updateHash(session.id, null);
   }
 }

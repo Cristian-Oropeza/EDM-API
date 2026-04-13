@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { User } from '../entities/user.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
@@ -15,8 +12,8 @@ export class UserService {
     private util: UtilService,
   ) {}
 
-  public async getAllUsers(): Promise<User[]> {
-    const users = await this.prisma.user.findMany({
+  public async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken'>[]> {
+    return await this.prisma.user.findMany({
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -24,14 +21,12 @@ export class UserService {
         lastName: true,
         username: true,
         createdAt: true,
-        tasks: true,
       },
     });
-    return users;
   }
 
-  public async getUserById(id: number): Promise<User | null> {
-    const user = await this.prisma.user.findUnique({
+  public async getUserById(id: number): Promise<Omit<User, 'password' | 'refreshToken'> | null> {
+    return await this.prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
@@ -39,42 +34,44 @@ export class UserService {
         lastName: true,
         username: true,
         createdAt: true,
-        tasks: true,
       },
     });
-    return user;
   }
 
-  public async insertUser(user: CreateUserDto): Promise<User> {
-    /* const existUser = await this.prisma.user.getUserByUserName({
-      where: { username: user.username },
+  public async insertUser(user: CreateUserDto): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    const encryptedPassword = await this.util.hashPassword(user.password);
+
+    return await this.prisma.user.create({
+      data: { ...user, password: encryptedPassword },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        username: true,
+        createdAt: true,
+      },
     });
-
-    if (existUser) {
-      throw new HttpException(
-        'El nombre de usuario ya exist',
-        HttpStatus.BAD_REQUEST,
-      );
-    } */
-
-    const encryptedPassword = await this.util.hash(user.password);
-    user.password = encryptedPassword;
-    const newUser = await this.prisma.user.create({ data: user });
-    return newUser;
   }
 
-  public async updateUser(
-    id: number,
-    userUpdate: UpdateUserDto,
-  ): Promise<User> {
-    const user = await this.prisma.user.update({
+  public async updateUser(id: number, userUpdate: UpdateUserDto): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    if (userUpdate.password) {
+      userUpdate.password = await this.util.hashPassword(userUpdate.password);
+    }
+
+    return await this.prisma.user.update({
       where: { id },
       data: userUpdate,
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        username: true,
+        createdAt: true,
+      },
     });
-    return user;
   }
 
-  public async deleteUser(id: number): Promise<User> {
+  public async deleteUser(id: number): Promise<Omit<User, 'password' | 'refreshToken'>> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: { tasks: true },
@@ -86,6 +83,15 @@ export class UserService {
       );
     }
 
-    return await this.prisma.user.delete({ where: { id } });
+    return await this.prisma.user.delete({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        username: true,
+        createdAt: true,
+      },
+    });
   }
 }

@@ -3,7 +3,7 @@ export class User {
   name!: string;
   lastName!: string;
   username!: string;
-  hash?: string | null | undefined;
-  password?: string;
+  password!: string;
+  refreshToken?: string | null;
   createdAt!: Date;
 }

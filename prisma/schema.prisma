@@ -1,11 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -13,34 +8,34 @@ datasource db {
 }
 
 model User {
-  id Int @default(autoincrement()) @id
-  name String @db.VarChar(200)
-  lastname String @db.VarChar(300)
-  username String @db.VarChar(100)
-  password String @db.LongText
-  hash String? @db.LongText
-  created_at DateTime@default(now())
-  task Task[] //un usuario puede tener varias tareas
-  logs Logs[] //un usuario puede tener varios logs
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(200)
+  lastName     String   @db.VarChar(300)
+  username     String   @db.VarChar(100)
+  password     String   @db.LongText
+  refreshToken String?  @db.LongText
+  createdAt    DateTime @default(now())
+  tasks        Task[]
+  logs         Logs[]
 }
 
 model Task {
-  id Int @default(autoincrement()) @id
-  name String @db.VarChar(250)
-  description String @db.VarChar(200)
-  priority Boolean 
-  created_at DateTime@default(now())
-  user_id Int
-  user User @relation(fields: [user_id], references: [id]) //se necesita declarar la relacion que tendra si sera de 1 a muchos o muchos a muchos
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(250)
+  description String   @db.VarChar(200)
+  priority    Boolean
+  createdAt   DateTime @default(now())
+  user_id     Int
+  user        User     @relation(fields: [user_id], references: [id])
 }
 
 model Logs {
-  id Int @default(autoincrement()) @id
+  id          Int      @id @default(autoincrement())
   status_code Int
-  timestamp DateTime @default(now())
-  path String @db.MediumText()
-  error String @db.MediumText()
-  error_code String @db.MediumText()
-  session_id Int?
-  user User? @relation(fields: [session_id], references: [id])
-} 
+  timestamp   DateTime @default(now())
+  path        String   @db.MediumText
+  error       String   @db.MediumText
+  error_code  String   @db.MediumText
+  session_id  Int?
+  user        User?    @relation(fields: [session_id], references: [id])
+}

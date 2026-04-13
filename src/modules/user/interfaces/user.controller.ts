@@ -13,30 +13,29 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { User } from '../entities/user.entity';
 import { UpdateUserDto } from '../dto/update-user.dto';
-import { UtilService } from 'src/common/services/util.service';
+import { User } from '../entities/user.entity';
 import { AuthGuard } from 'src/common/guards/auth.guard';
 
 @Controller('/api/user')
-@UseGuards(AuthGuard)
+// @UseGuards(AuthGuard)
 export class UserController {
   constructor(private usersvc: UserService) {}
 
   @Get('')
-  async getAllUsers(): Promise<User[]> {
+  async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken'>[]> {
     return await this.usersvc.getAllUsers();
   }
 
   @Get(':id')
   public async getUserById(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<User> {
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
     const result = await this.usersvc.getUserById(id);
 
-    if (result == undefined) {
+    if (!result) {
       throw new HttpException(
-        `Usuario con ID ${id} no encontrado`,
+        { message: `Usuario con ID ${id} no encontrado`, errorCode: 'USER_NOT_FOUND' },
         HttpStatus.NOT_FOUND,
       );
     }
@@ -45,24 +44,26 @@ export class UserController {
   }
 
   @Post('')
-  public insertUser(@Body() user: CreateUserDto): Promise<User> {
-    const result = this.usersvc.insertUser(user);
-
-    if (!result) {
-      throw new HttpException(
-        'Error al insertar el usuario',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    return result;
+  public async insertUser(
+    @Body() user: CreateUserDto,
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    return await this.usersvc.insertUser(user);
   }
 
   @Put(':id')
   public async updateUser(
     @Param('id', ParseIntPipe) id: number,
     @Body() user: UpdateUserDto,
-  ): Promise<User> {
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    const result = await this.usersvc.getUserById(id);
+
+    if (!result) {
+      throw new HttpException(
+        { message: `Usuario con ID ${id} no encontrado`, errorCode: 'USER_NOT_FOUND' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     return await this.usersvc.updateUser(id, user);
   }
 
@@ -70,6 +71,15 @@ export class UserController {
   public async deleteUser(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<boolean> {
+    const result = await this.usersvc.getUserById(id);
+
+    if (!result) {
+      throw new HttpException(
+        { message: `Usuario con ID ${id} no encontrado`, errorCode: 'USER_NOT_FOUND' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     await this.usersvc.deleteUser(id);
     return true;
   }

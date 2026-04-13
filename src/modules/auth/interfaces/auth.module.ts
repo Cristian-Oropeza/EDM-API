@@ -9,8 +9,8 @@ import { UtilService } from 'src/common/services/util.service';
   imports: [
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '60s' },
+      secret: process.env.JWT_ACCESS_SECRET,
+      signOptions: { expiresIn: '1h' },
     }),
   ],
   controllers: [AuthController], //puede tener mas de 1 controlador

@@ -2,23 +2,23 @@ import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, MaxLength, MinLength 
 
 export class UpdateTaskDto {
   @IsOptional()
-  @IsString({ message: 'Debe ser una cadena' })
-  @MinLength(3)
-  @MaxLength(100)
+  @IsString({ message: 'El nombre debe ser una cadena de texto' })
+  @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
+  @MaxLength(100, { message: 'El nombre no puede tener más de 100 caracteres' })
   name?: string;
 
   @IsOptional()
-  @IsString({ message: 'Debe ser una cadena' })
-  @MinLength(3)
-  @MaxLength(250)
+  @IsString({ message: 'La descripción debe ser una cadena de texto' })
+  @MinLength(3, { message: 'La descripción debe tener al menos 3 caracteres' })
+  @MaxLength(250, { message: 'La descripción no puede tener más de 250 caracteres' })
   description?: string;
 
   @IsOptional()
-  @IsBoolean()
+  @IsBoolean({ message: 'La prioridad debe ser true o false' })
   priority?: boolean;
 
   @IsOptional()
-  @IsNumber()
-  @IsInt()
+  @IsNumber({}, { message: 'El user_id debe ser un número' })
+  @IsInt({ message: 'El user_id debe ser un número entero' })
   user_id?: number;
 }
