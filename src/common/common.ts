@@ -1,1 +1,0 @@
-//! información e inyecciones comunes
