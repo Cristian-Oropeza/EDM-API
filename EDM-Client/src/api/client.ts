@@ -1,5 +1,16 @@
 import axios from 'axios';
 
+const DANGEROUS_CHARS = /[<>"'\\/;{}()]/;
+const DANGEROUS_CHARS_PASSWORD = /[<>"';]/;
+
+export function hasDangerousChars(value: string): boolean {
+  return DANGEROUS_CHARS.test(value);
+}
+
+export function hasDangerousPasswordChars(value: string): boolean {
+  return DANGEROUS_CHARS_PASSWORD.test(value);
+}
+
 const api = axios.create({
   baseURL: 'http://localhost:3000',
 });

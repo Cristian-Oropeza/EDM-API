@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { hasDangerousChars } from '../api/client';
 
 interface Task {
   id: number;
@@ -9,6 +9,8 @@ interface Task {
   user_id: number;
   createdAt: string;
 }
+
+const DANGEROUS_MSG = 'No se permiten los caracteres: < > " \' / \\ ; { } ( )';
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -55,15 +57,38 @@ export default function Tasks() {
     setShowForm(true);
   };
 
+  const validateForm = (): string => {
+    const name = form.name.trim();
+    const description = form.description.trim();
+
+    if (!name) return 'El nombre no puede estar vacío';
+    if (!description) return 'La descripción no puede estar vacía';
+    if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
+    if (hasDangerousChars(description)) return `Descripción: ${DANGEROUS_MSG}`;
+    return '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+
+    const validationError = validateForm();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
     setFormLoading(true);
     try {
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        priority: form.priority,
+      };
       if (editingTask) {
-        await api.put(`/api/task/${editingTask.id}`, form);
+        await api.put(`/api/task/${editingTask.id}`, payload);
       } else {
-        await api.post('/api/task', form);
+        await api.post('/api/task', payload);
       }
       setShowForm(false);
       fetchTasks();

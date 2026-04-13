@@ -1,22 +1,53 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../api/client';
+import api, { hasDangerousChars, hasDangerousPasswordChars } from '../api/client';
+
+const DANGEROUS_MSG = 'No se permiten los caracteres: < > " \' / \\ ; { } ( )';
+const DANGEROUS_PASSWORD_MSG = 'No se permiten los caracteres: < > " \' ;';
 
 export default function Register() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', lastName: '', username: '', password: '', confirmPassword: '' });  const [error, setError] = useState<string | string[]>('');
+  const [form, setForm] = useState({ name: '', lastName: '', username: '', password: '', confirmPassword: '' });
+  const [error, setError] = useState<string | string[]>('');
   const [loading, setLoading] = useState(false);
+
+  const validate = (): string => {
+    const { name, lastName, username, password, confirmPassword } = form;
+
+    if (!name.trim()) return 'El nombre no puede estar vacío';
+    if (!lastName.trim()) return 'El apellido no puede estar vacío';
+    if (!username.trim()) return 'El usuario no puede estar vacío';
+    if (!password.trim()) return 'La contraseña no puede estar vacía';
+    if (!confirmPassword.trim()) return 'Debes confirmar la contraseña';
+
+    if (hasDangerousChars(name.trim())) return `Nombre: ${DANGEROUS_MSG}`;
+    if (hasDangerousChars(lastName.trim())) return `Apellido: ${DANGEROUS_MSG}`;
+    if (hasDangerousChars(username.trim())) return `Usuario: ${DANGEROUS_MSG}`;
+    if (hasDangerousPasswordChars(password.trim())) return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
+    if (hasDangerousPasswordChars(confirmPassword.trim())) return `Confirmar contraseña: ${DANGEROUS_PASSWORD_MSG}`;
+
+    if (password !== confirmPassword) return 'Las contraseñas no coinciden';
+    return '';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
-    if (form.password !== form.confirmPassword) {
-        setError('Las contraseñas no coinciden');
-        return;
+
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
+
+    setLoading(true);
     try {
-      await api.post('/api/user', form);
+      await api.post('/api/user', {
+        name: form.name.trim(),
+        lastName: form.lastName.trim(),
+        username: form.username.trim(),
+        password: form.password.trim(),
+      });
       navigate('/login');
     } catch (err: any) {
       const msg = err.response?.data?.error;
@@ -84,15 +115,15 @@ export default function Register() {
               />
             </div>
             <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Confirmar contraseña</label>
-            <input
+              <label className="block text-sm font-medium text-slate-300 mb-1">Confirmar contraseña</label>
+              <input
                 type="password"
                 value={form.confirmPassword}
                 onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="••••••••"
                 required
-            />
+              />
             </div>
             {errors.length > 0 && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm space-y-1">

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/client';
+import api, { hasDangerousChars, hasDangerousPasswordChars } from '../api/client';
+
+const DANGEROUS_MSG = 'No se permiten los caracteres: < > " \' / \\ ; { } ( )';
+const DANGEROUS_PASSWORD_MSG = 'No se permiten los caracteres: < > " \' ;';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -11,19 +14,19 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-const getUserFromToken = () => {
-  const token = localStorage.getItem('access_token');
-  if (!token) return null;
-  try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64).split('').map(c =>
-        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-      ).join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch { return null; }
-};
+  const getUserFromToken = () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return null;
+    try {
+      const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64).split('').map(c =>
+          '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch { return null; }
+  };
 
   useEffect(() => {
     const tokenUser = getUserFromToken();
@@ -34,14 +37,42 @@ const getUserFromToken = () => {
     });
   }, []);
 
+  const validate = (): string => {
+    const name = form.name.trim();
+    const lastName = form.lastName.trim();
+    const username = form.username.trim();
+    const password = form.password.trim();
+
+    if (!name) return 'El nombre no puede estar vacío';
+    if (!lastName) return 'El apellido no puede estar vacío';
+    if (!username) return 'El usuario no puede estar vacío';
+
+    if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
+    if (hasDangerousChars(lastName)) return `Apellido: ${DANGEROUS_MSG}`;
+    if (hasDangerousChars(username)) return `Usuario: ${DANGEROUS_MSG}`;
+    if (password && hasDangerousPasswordChars(password)) return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
+    return '';
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload: any = { name: form.name, lastName: form.lastName, username: form.username };
-      if (form.password) payload.password = form.password;
+      const payload: any = {
+        name: form.name.trim(),
+        lastName: form.lastName.trim(),
+        username: form.username.trim(),
+      };
+      if (form.password.trim()) payload.password = form.password.trim();
       await api.put(`/api/user/${user.id}`, payload);
       setSuccess('Perfil actualizado correctamente');
       setForm(f => ({ ...f, password: '' }));
@@ -80,7 +111,6 @@ const getUserFromToken = () => {
           <h1 className="text-2xl font-bold text-white">Mi perfil</h1>
           <p className="text-slate-400 mt-1">Actualiza tu información personal</p>
         </div>
-
         <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -127,14 +157,12 @@ const getUserFromToken = () => {
                 placeholder="••••••••"
               />
             </div>
-
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
             )}
             {success && (
               <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3 text-green-400 text-sm">{success}</div>
             )}
-
             <button
               type="submit"
               disabled={loading}
@@ -143,7 +171,6 @@ const getUserFromToken = () => {
               {loading ? 'Guardando...' : 'Guardar cambios'}
             </button>
           </form>
-
           <div className="mt-6 pt-6 border-t border-slate-700">
             <h3 className="text-red-400 font-medium mb-2">Zona de peligro</h3>
             <p className="text-slate-400 text-sm mb-4">
