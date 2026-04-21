@@ -1,16 +1,5 @@
 import axios from 'axios';
 
-const DANGEROUS_CHARS = /[<>"'\\/;{}()]/;
-const DANGEROUS_CHARS_PASSWORD = /[<>"';]/;
-
-export function hasDangerousChars(value: string): boolean {
-  return DANGEROUS_CHARS.test(value);
-}
-
-export function hasDangerousPasswordChars(value: string): boolean {
-  return DANGEROUS_CHARS_PASSWORD.test(value);
-}
-
 const api = axios.create({
   baseURL: 'http://localhost:3000',
 });
@@ -46,9 +35,10 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post('http://localhost:3000/api/auth/refresh', {
-          refreshToken,
-        });
+        const { data } = await axios.post(
+          'http://localhost:3000/api/auth/refresh',
+          { refreshToken },
+        );
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('refresh_token', data.refresh_token);
         original.headers.Authorization = `Bearer ${data.access_token}`;
@@ -63,7 +53,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

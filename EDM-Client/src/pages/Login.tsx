@@ -1,24 +1,27 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../api/client';
+import { login } from '../services/auth.service';
+import { extractErrorMessages, getErrorStatus } from '../utils/validation';
+import Alert from '../components/Alert';
 
 export default function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
+  const [alertType, setAlertType] = useState<'error' | 'warning'>('error');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setErrors([]);
     setLoading(true);
     try {
-      const { data } = await api.post('/api/auth/login', form);
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
+      await login(form);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al iniciar sesión');
+      const status = getErrorStatus(err);
+      setAlertType(status >= 500 ? 'error' : 'warning');
+      setErrors(extractErrorMessages(err, 'Error al iniciar sesión'));
     } finally {
       setLoading(false);
     }
@@ -31,7 +34,7 @@ export default function Login() {
           <h1 className="text-3xl font-bold text-white">EDM</h1>
           <p className="text-slate-400 mt-2">Inicia sesión para continuar</p>
         </div>
-        <div className="bg-slate-900 rounded-xl border border-slate-700 p-8">
+        <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Usuario</label>
@@ -55,10 +58,8 @@ export default function Login() {
                 required
               />
             </div>
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
-                {error}
-              </div>
+            {errors.length > 0 && (
+              <Alert type={alertType} messages={errors} onClose={() => setErrors([])} />
             )}
             <button
               type="submit"

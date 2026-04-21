@@ -1,63 +1,62 @@
 import { useEffect, useState } from 'react';
-import api, { hasDangerousChars } from '../api/client';
-
-interface Task {
-  id: number;
-  name: string;
-  description: string;
-  priority: boolean;
-  user_id: number;
-  createdAt: string;
-}
-
-const DANGEROUS_MSG = 'No se permiten los caracteres: < > " \' / \\ ; { } ( )';
+import { useAuth } from '../hooks/useAuth';
+import {
+  getAllTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+} from '../services/task.service';
+import {
+  hasDangerousChars,
+  DANGEROUS_MSG,
+  extractErrorMessages,
+  getErrorStatus,
+} from '../utils/validation';
+import Alert from '../components/Alert';
+import type { Task } from '../types';
 
 export default function Tasks() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [listError, setListError] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form, setForm] = useState({ name: '', description: '', priority: false });
-  const [formError, setFormError] = useState('');
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [formAlertType, setFormAlertType] = useState<'error' | 'warning'>('warning');
   const [formLoading, setFormLoading] = useState(false);
-
-  const getUser = () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return null;
-    try { return JSON.parse(atob(token.split('.')[1])); }
-    catch { return null; }
-  };
-  const user = getUser();
 
   const fetchTasks = async () => {
     try {
-      const { data } = await api.get('/api/task');
+      const data = await getAllTasks();
       setTasks(data);
     } catch {
-      setError('Error al cargar las tareas');
+      setListError(['Error al cargar las tareas']);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchTasks(); }, []);
+  useEffect(() => {
+    fetchTasks();
+  }, []);
 
   const openCreate = () => {
     setEditingTask(null);
     setForm({ name: '', description: '', priority: false });
-    setFormError('');
+    setFormErrors([]);
     setShowForm(true);
   };
 
   const openEdit = (task: Task) => {
     setEditingTask(task);
     setForm({ name: task.name, description: task.description, priority: task.priority });
-    setFormError('');
+    setFormErrors([]);
     setShowForm(true);
   };
 
-  const validateForm = (): string => {
+  const validateForm = (): string | null => {
     const name = form.name.trim();
     const description = form.description.trim();
 
@@ -65,16 +64,17 @@ export default function Tasks() {
     if (!description) return 'La descripción no puede estar vacía';
     if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
     if (hasDangerousChars(description)) return `Descripción: ${DANGEROUS_MSG}`;
-    return '';
+    return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError('');
+    setFormErrors([]);
 
     const validationError = validateForm();
     if (validationError) {
-      setFormError(validationError);
+      setFormAlertType('warning');
+      setFormErrors([validationError]);
       return;
     }
 
@@ -86,15 +86,16 @@ export default function Tasks() {
         priority: form.priority,
       };
       if (editingTask) {
-        await api.put(`/api/task/${editingTask.id}`, payload);
+        await updateTask(editingTask.id, payload);
       } else {
-        await api.post('/api/task', payload);
+        await createTask(payload);
       }
       setShowForm(false);
       fetchTasks();
     } catch (err: any) {
-      const msg = err.response?.data?.error;
-      setFormError(Array.isArray(msg) ? msg.join(', ') : msg || 'Error al guardar la tarea');
+      const status = getErrorStatus(err);
+      setFormAlertType(status >= 500 ? 'error' : 'warning');
+      setFormErrors(extractErrorMessages(err, 'Error al guardar la tarea'));
     } finally {
       setFormLoading(false);
     }
@@ -103,25 +104,25 @@ export default function Tasks() {
   const handleDelete = async (task: Task) => {
     if (!confirm(`¿Eliminar la tarea "${task.name}"?`)) return;
     try {
-      await api.delete(`/api/task/${task.id}`);
+      await deleteTask(task.id);
       fetchTasks();
     } catch (err: any) {
-      const msg = err.response?.data?.error;
-      alert(Array.isArray(msg) ? msg.join(', ') : msg || 'Error al eliminar');
+      const msgs = extractErrorMessages(err, 'Error al eliminar');
+      alert(msgs.join('\n'));
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
+    <div className="min-h-screen bg-slate-950 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">Todas las tareas</h1>
             <p className="text-slate-400 mt-1">Puedes editar y eliminar solo tus propias tareas</p>
           </div>
           <button
             onClick={openCreate}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg transition-colors"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg transition-colors w-full sm:w-auto"
           >
             + Nueva tarea
           </button>
@@ -164,10 +165,8 @@ export default function Tasks() {
                   />
                   <label htmlFor="priority" className="text-slate-300 text-sm">Alta prioridad</label>
                 </div>
-                {formError && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
-                    {formError}
-                  </div>
+                {formErrors.length > 0 && (
+                  <Alert type={formAlertType} messages={formErrors} onClose={() => setFormErrors([])} />
                 )}
                 <div className="flex gap-3 pt-2">
                   <button
@@ -192,62 +191,108 @@ export default function Tasks() {
 
         {loading ? (
           <div className="text-slate-400">Cargando...</div>
-        ) : error ? (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400">{error}</div>
+        ) : listError.length > 0 ? (
+          <Alert type="error" messages={listError} />
         ) : (
-          <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">ID</th>
-                  <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Nombre</th>
-                  <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Descripción</th>
-                  <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Prioridad</th>
-                  <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Usuario</th>
-                  <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map(task => (
-                  <tr key={task.id} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
-                    <td className="px-5 py-3 text-slate-400 text-sm">{task.id}</td>
-                    <td className="px-5 py-3 text-white text-sm font-medium">{task.name}</td>
-                    <td className="px-5 py-3 text-slate-400 text-sm">{task.description}</td>
-                    <td className="px-5 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        task.priority
-                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          : 'bg-slate-700 text-slate-400'
-                      }`}>
-                        {task.priority ? 'Alta' : 'Normal'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-slate-400 text-sm">{task.user_id}</td>
-                    <td className="px-5 py-3">
-                      {task.user_id === user?.id ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => openEdit(task)}
-                            className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDelete(task)}
-                            className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-slate-600 text-sm">—</span>
-                      )}
-                    </td>
+          <>
+            {/* Desktop: Tabla */}
+            <div className="hidden md:block bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">ID</th>
+                    <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Nombre</th>
+                    <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Descripción</th>
+                    <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Prioridad</th>
+                    <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Usuario</th>
+                    <th className="text-left text-slate-400 text-sm font-medium px-5 py-3">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {tasks.map(task => (
+                    <tr key={task.id} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
+                      <td className="px-5 py-3 text-slate-400 text-sm">{task.id}</td>
+                      <td className="px-5 py-3 text-white text-sm font-medium">{task.name}</td>
+                      <td className="px-5 py-3 text-slate-400 text-sm">{task.description}</td>
+                      <td className="px-5 py-3">
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                          task.priority
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            : 'bg-slate-700 text-slate-400'
+                        }`}>
+                          {task.priority ? 'Alta' : 'Normal'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-slate-400 text-sm">{task.user_id}</td>
+                      <td className="px-5 py-3">
+                        {task.user_id === user?.id ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEdit(task)}
+                              className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDelete(task)}
+                              className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-600 text-sm">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: Cards */}
+            <div className="md:hidden space-y-3">
+              {tasks.map(task => (
+                <div key={task.id} className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-3 gap-2">
+                    <div className="min-w-0">
+                      <p className="text-slate-500 text-xs mb-1">#{task.id}</p>
+                      <h3 className="text-white font-medium break-words">{task.name}</h3>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${
+                      task.priority
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : 'bg-slate-700 text-slate-400'
+                    }`}>
+                      {task.priority ? 'Alta' : 'Normal'}
+                    </span>
+                  </div>
+                  <p className="text-slate-400 text-sm mb-3 break-words">{task.description}</p>
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                    <span className="text-slate-500 text-xs">Usuario {task.user_id}</span>
+                    {task.user_id === user?.id ? (
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => openEdit(task)}
+                          className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(task)}
+                          className="text-red-400 hover:text-red-300 text-sm font-medium"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-slate-600 text-sm">—</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

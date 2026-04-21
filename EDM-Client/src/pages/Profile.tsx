@@ -1,43 +1,43 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { hasDangerousChars, hasDangerousPasswordChars } from '../api/client';
-
-const DANGEROUS_MSG = 'No se permiten los caracteres: < > " \' / \\ ; { } ( )';
-const DANGEROUS_PASSWORD_MSG = 'No se permiten los caracteres: < > " \' ;';
+import { useAuth } from '../hooks/useAuth';
+import { getUserById, updateUser, deleteUser } from '../services/user.service';
+import {
+  hasDangerousChars,
+  hasDangerousPasswordChars,
+  DANGEROUS_MSG,
+  DANGEROUS_PASSWORD_MSG,
+  extractErrorMessages,
+  getErrorStatus,
+} from '../utils/validation';
+import Alert from '../components/Alert';
+import type { User, UpdateUserDto } from '../types';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
+  const { user: tokenUser } = useAuth();
+  const [user, setUser] = useState<User | null>(null);
   const [form, setForm] = useState({ name: '', lastName: '', username: '', password: '' });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
+  const [alertType, setAlertType] = useState<'error' | 'warning'>('warning');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const getUserFromToken = () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return null;
-    try {
-      const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64).split('').map(c =>
-          '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-        ).join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch { return null; }
-  };
-
   useEffect(() => {
-    const tokenUser = getUserFromToken();
     if (!tokenUser) return;
-    api.get(`/api/user/${tokenUser.id}`).then(({ data }) => {
+    getUserById(tokenUser.id).then(data => {
       setUser(data);
-      setForm({ name: data.name, lastName: data.lastName, username: data.username, password: '' });
+      setForm({
+        name: data.name,
+        lastName: data.lastName,
+        username: data.username,
+        password: '',
+      });
     });
-  }, []);
+  }, [tokenUser]);
 
-  const validate = (): string => {
+  const validate = (): string | null => {
     const name = form.name.trim();
     const lastName = form.lastName.trim();
     const username = form.username.trim();
@@ -50,35 +50,41 @@ export default function Profile() {
     if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
     if (hasDangerousChars(lastName)) return `Apellido: ${DANGEROUS_MSG}`;
     if (hasDangerousChars(username)) return `Usuario: ${DANGEROUS_MSG}`;
-    if (password && hasDangerousPasswordChars(password)) return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
-    return '';
+    if (password && hasDangerousPasswordChars(password))
+      return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
+    return null;
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setErrors([]);
     setSuccess('');
 
     const validationError = validate();
     if (validationError) {
-      setError(validationError);
+      setAlertType('warning');
+      setErrors([validationError]);
       return;
     }
 
+    if (!user) return;
+
     setLoading(true);
     try {
-      const payload: any = {
+      const payload: UpdateUserDto = {
         name: form.name.trim(),
         lastName: form.lastName.trim(),
         username: form.username.trim(),
       };
       if (form.password.trim()) payload.password = form.password.trim();
-      await api.put(`/api/user/${user.id}`, payload);
+
+      await updateUser(user.id, payload);
       setSuccess('Perfil actualizado correctamente');
       setForm(f => ({ ...f, password: '' }));
     } catch (err: any) {
-      const msg = err.response?.data?.error;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar');
+      const status = getErrorStatus(err);
+      setAlertType(status >= 500 ? 'error' : 'warning');
+      setErrors(extractErrorMessages(err, 'Error al actualizar'));
     } finally {
       setLoading(false);
     }
@@ -86,14 +92,17 @@ export default function Profile() {
 
   const handleDelete = async () => {
     if (!confirm('¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.')) return;
+    if (!user) return;
+
     setDeleteLoading(true);
     try {
-      await api.delete(`/api/user/${user.id}`);
+      await deleteUser(user.id);
       localStorage.clear();
       navigate('/login');
     } catch (err: any) {
-      const msg = err.response?.data?.error;
-      setError(Array.isArray(msg) ? msg.join(', ') : msg || 'Error al eliminar la cuenta');
+      const status = getErrorStatus(err);
+      setAlertType(status >= 500 ? 'error' : 'warning');
+      setErrors(extractErrorMessages(err, 'Error al eliminar la cuenta'));
       setDeleteLoading(false);
     }
   };
@@ -105,7 +114,7 @@ export default function Profile() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
+    <div className="min-h-screen bg-slate-950 p-4 sm:p-6">
       <div className="max-w-lg mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white">Mi perfil</h1>
@@ -113,7 +122,7 @@ export default function Profile() {
         </div>
         <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
           <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Nombre</label>
                 <input
@@ -157,11 +166,11 @@ export default function Profile() {
                 placeholder="••••••••"
               />
             </div>
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
+            {errors.length > 0 && (
+              <Alert type={alertType} messages={errors} onClose={() => setErrors([])} />
             )}
             {success && (
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3 text-green-400 text-sm">{success}</div>
+              <Alert type="success" messages={success} onClose={() => setSuccess('')} />
             )}
             <button
               type="submit"
