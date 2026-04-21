@@ -15,12 +15,14 @@ import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UtilService } from 'src/common/services/util.service';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { LogsService } from 'src/modules/logs/interfaces/logs.service';
 
 @Controller('api/auth')
 export class AuthController {
   constructor(
     private readonly authSvc: AuthService,
     private readonly utilSvc: UtilService,
+    private readonly logsSvc: LogsService,
   ) {}
 
   @Post('/login')
@@ -30,14 +32,34 @@ export class AuthController {
 
     const user = await this.authSvc.getUserByUsername(username);
     if (!user) {
-      throw new UnauthorizedException('El usuario y/o contraseña es incorrecto');
+      await this.logsSvc.createLog({
+        status_code: 401,
+        path: '/api/auth/login',
+        error: 'Credenciales incorrectas',
+        error_code: 'INVALID_CREDENTIALS',
+        session_id: null,
+      });
+      throw new UnauthorizedException({
+        message: 'El usuario y/o contraseña es incorrecto',
+        errorCode: 'INVALID_CREDENTIALS',
+      });
     }
 
     if (!(await this.utilSvc.checkPassword(password, user.password))) {
-      throw new UnauthorizedException('El usuario y/o contraseña son incorrectos');
+      await this.logsSvc.createLog({
+        status_code: 401,
+        path: '/api/auth/login',
+        error: 'Credenciales incorrectas',
+        error_code: 'INVALID_CREDENTIALS',
+        session_id: null,
+      });
+      throw new UnauthorizedException({
+        message: 'El usuario y/o contraseña son incorrectos',
+        errorCode: 'INVALID_CREDENTIALS',
+      });
     }
 
-    const { password: _pwd, username: _usr, refreshToken: _rt, ...payload } = user;
+    const { password: _pwd, refreshToken: _rt, ...payload } = user;
 
     const access_token = await this.utilSvc.generateJWT(payload, '1h');
     const refresh_token = await this.utilSvc.generateJWT(payload, '7d');
@@ -45,7 +67,6 @@ export class AuthController {
 
     await this.authSvc.updateHash(user.id, hashRT);
 
-    // devolver refresh_token (JWT), no hashRT (bcrypt)
     return { access_token, refresh_token };
   }
 
@@ -56,29 +77,34 @@ export class AuthController {
   }
 
   @Post('/refresh')
-  // sin AuthGuard, el refresh_token viene en el body
   public async refreshToken(@Body() body: RefreshTokenDto): Promise<any> {
-    // Verificar que el refresh_token sea un JWT válido
     let payload: any;
     try {
       payload = await this.utilSvc.getPayload(body.refreshToken);
     } catch {
-      throw new ForbiddenException('Refresh token inválido o expirado');
+      throw new ForbiddenException({
+        message: 'Refresh token inválido o expirado',
+        errorCode: 'INVALID_REFRESH_TOKEN',
+      });
     }
 
-    // Buscar el usuario y verificar que tenga refreshToken guardado
     const user = await this.authSvc.getUserById(payload.id);
     if (!user || !user.refreshToken) {
-      throw new ForbiddenException('Acceso denegado');
+      throw new ForbiddenException({
+        message: 'Acceso denegado',
+        errorCode: 'ACCESS_DENIED',
+      });
     }
 
-    // Fix: comparar el JWT del body contra el hash guardado en BD con bcrypt
     const rtValido = await this.utilSvc.checkPassword(body.refreshToken, user.refreshToken);
     if (!rtValido) {
-      throw new ForbiddenException('Refresh token inválido');
+      throw new ForbiddenException({
+        message: 'Refresh token inválido',
+        errorCode: 'INVALID_REFRESH_TOKEN',
+      });
     }
 
-    const { password: _pwd, username: _usr, refreshToken: _rt, ...newPayload } = user;
+    const { password: _pwd, refreshToken: _rt, ...newPayload } = user;
 
     const access_token = await this.utilSvc.generateJWT(newPayload, '1h');
     const refresh_token = await this.utilSvc.generateJWT(newPayload, '7d');

@@ -18,15 +18,18 @@ import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { User } from '../entities/user.entity';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { LogsService } from 'src/modules/logs/interfaces/logs.service';
 
 @Controller('/api/user')
-// @UseGuards(AuthGuard)
 export class UserController {
-  constructor(private usersvc: UserService) {}
+  constructor(
+    private usersvc: UserService,
+    private readonly logsSvc: LogsService,
+  ) {}
 
   @Get('')
   @UseGuards(AuthGuard)
-  async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken'>[]> {
+  async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>[]> {
     return await this.usersvc.getAllUsers();
   }
 
@@ -34,7 +37,7 @@ export class UserController {
   @UseGuards(AuthGuard)
   public async getUserById(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+  ): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
     const result = await this.usersvc.getUserById(id);
     if (!result) {
       throw new HttpException(
@@ -48,7 +51,7 @@ export class UserController {
   @Post('')
   public async insertUser(
     @Body() user: CreateUserDto,
-  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+  ): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
     return await this.usersvc.insertUser(user);
   }
 
@@ -58,8 +61,18 @@ export class UserController {
     @Param('id', ParseIntPipe) id: number,
     @Body() user: UpdateUserDto,
     @Req() req: any,
-  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
-    if (req.user.id !== id) {
+  ): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = req.user.id === id;
+
+    if (!isAdmin && !isOwner) {
+      await this.logsSvc.createLog({
+        status_code: 403,
+        path: `/api/user/${id}`,
+        error: 'Intento de editar usuario ajeno',
+        error_code: 'FORBIDDEN_USER_UPDATE',
+        session_id: req.user.id,
+      });
       throw new ForbiddenException({
         message: 'No tienes permiso para editar este usuario',
         errorCode: 'FORBIDDEN_USER_UPDATE',
@@ -74,7 +87,15 @@ export class UserController {
       );
     }
 
-    return await this.usersvc.updateUser(id, user);
+    // Si es admin editando a OTRO usuario, no puede cambiar el username
+    // Solo puede tocar name, lastName y password
+    let payload: UpdateUserDto = user;
+    if (isAdmin && !isOwner) {
+      const { username, ...rest } = user;
+      payload = rest;
+    }
+
+    return await this.usersvc.updateUser(id, payload);
   }
 
   @Delete(':id')
@@ -84,6 +105,13 @@ export class UserController {
     @Req() req: any,
   ): Promise<boolean> {
     if (req.user.id !== id) {
+      await this.logsSvc.createLog({
+        status_code: 403,
+        path: `/api/user/${id}`,
+        error: 'Intento de eliminar usuario ajeno',
+        error_code: 'FORBIDDEN_USER_DELETE',
+        session_id: req.user.id,
+      });
       throw new ForbiddenException({
         message: 'No tienes permiso para eliminar este usuario',
         errorCode: 'FORBIDDEN_USER_DELETE',

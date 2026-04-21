@@ -13,12 +13,32 @@ export class AuthService {
   public async getUserByUsername(username: string): Promise<User | null> {
     return await this.prisma.user.findFirst({
       where: { username },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        username: true,
+        password: true,
+        refreshToken: true,
+        role: true,
+        createdAt: true,
+      },
     });
   }
 
   public async getUserById(id: number): Promise<User | null> {
     return await this.prisma.user.findUnique({
       where: { id },
+            select: {
+        id: true,
+        name: true,
+        lastName: true,
+        username: true,
+        password: true,
+        refreshToken: true,
+        role: true,
+        createdAt: true,
+      },
     });
   }
 

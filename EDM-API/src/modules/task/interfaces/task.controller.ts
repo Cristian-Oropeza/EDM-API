@@ -18,11 +18,15 @@ import { CreateTaskDto } from '../dto/create-task.dto';
 import { Task } from '../entities/task.entity';
 import { UpdateTaskDto } from '../dto/update-task.dto';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { LogsService } from 'src/modules/logs/interfaces/logs.service';
 
 @Controller('/api/task')
 @UseGuards(AuthGuard)
 export class TaskController {
-  constructor(private tasksvc: TaskService) {}
+  constructor(
+    private tasksvc: TaskService,
+    private readonly logsSvc: LogsService,
+  ) {}
 
   @Get('')
   async getAllTasks(): Promise<Task[]> {
@@ -76,6 +80,13 @@ export class TaskController {
     }
 
     if (result.user_id !== req.user.id) {
+      await this.logsSvc.createLog({
+        status_code: 403,
+        path: `/api/task/${id}`,
+        error: 'Intento de editar tarea ajena',
+        error_code: 'FORBIDDEN_TASK_UPDATE',
+        session_id: req.user.id,
+      });
       throw new ForbiddenException({
         message: 'No tienes permiso para editar esta tarea',
         errorCode: 'FORBIDDEN_TASK_UPDATE',
@@ -100,6 +111,13 @@ export class TaskController {
     }
 
     if (result.user_id !== req.user.id) {
+      await this.logsSvc.createLog({
+        status_code: 403,
+        path: `/api/task/${id}`,
+        error: 'Intento de eliminar tarea ajena',
+        error_code: 'FORBIDDEN_TASK_DELETE',
+        session_id: req.user.id,
+      });
       throw new ForbiddenException({
         message: 'No tienes permiso para eliminar esta tarea',
         errorCode: 'FORBIDDEN_TASK_DELETE',

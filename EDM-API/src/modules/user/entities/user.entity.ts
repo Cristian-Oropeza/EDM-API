@@ -5,5 +5,6 @@ export class User {
   username!: string;
   password!: string;
   refreshToken?: string | null;
+  role!: string;
   createdAt!: Date;
 }

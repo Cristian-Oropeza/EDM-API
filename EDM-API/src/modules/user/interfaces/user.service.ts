@@ -12,7 +12,7 @@ export class UserService {
     private util: UtilService,
   ) {}
 
-  public async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken'>[]> {
+  public async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>[]> {
     return await this.prisma.user.findMany({
       orderBy: { name: 'asc' },
       select: {
@@ -25,7 +25,7 @@ export class UserService {
     });
   }
 
-  public async getUserById(id: number): Promise<Omit<User, 'password' | 'refreshToken'> | null> {
+  public async getUserById(id: number): Promise<Omit<User, 'password' | 'refreshToken' | 'role'> | null> {
     return await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -38,7 +38,7 @@ export class UserService {
     });
   }
 
-  public async insertUser(user: CreateUserDto): Promise<Omit<User, 'password' | 'refreshToken'>> {
+  public async insertUser(user: CreateUserDto): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
     const existing = await this.prisma.user.findFirst({ where: { username: user.username } });
     if (existing) {
       throw new BadRequestException({
@@ -60,7 +60,10 @@ export class UserService {
     });
   }
 
-  public async updateUser(id: number, userUpdate: UpdateUserDto): Promise<Omit<User, 'password' | 'refreshToken'>> {
+  public async updateUser(
+    id: number,
+    userUpdate: UpdateUserDto,
+  ): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
     if (userUpdate.username) {
       const existing = await this.prisma.user.findFirst({
         where: { username: userUpdate.username, NOT: { id } },
@@ -90,16 +93,17 @@ export class UserService {
     });
   }
 
-  public async deleteUser(id: number): Promise<Omit<User, 'password' | 'refreshToken'>> {
+  public async deleteUser(id: number): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: { tasks: true },
     });
 
     if (user?.tasks && user.tasks.length > 0) {
-      throw new BadRequestException(
-        'No se puede eliminar el usuario porque tiene tareas asignadas',
-      );
+      throw new BadRequestException({
+        message: 'No se puede eliminar el usuario porque tiene tareas asignadas',
+        errorCode: 'USER_HAS_TASKS',
+      });
     }
 
     return await this.prisma.user.delete({

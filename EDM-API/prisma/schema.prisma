@@ -14,6 +14,7 @@ model User {
   username     String   @db.VarChar(100) @unique
   password     String   @db.LongText
   refreshToken String?  @db.LongText
+  role         String   @default("user") @db.VarChar(20)
   createdAt    DateTime @default(now())
   tasks        Task[]
   logs         Logs[]
