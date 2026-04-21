@@ -87,13 +87,8 @@ export class UserController {
       );
     }
 
-    // Si es admin editando a OTRO usuario, no puede cambiar el username
-    // Solo puede tocar name, lastName y password
-    let payload: UpdateUserDto = user;
-    if (isAdmin && !isOwner) {
-      const { username, ...rest } = user;
-      payload = rest;
-    }
+    // El username es inmutable: nadie puede modificarlo, ni siquiera el propio dueño
+    const { username: _ignored, ...payload } = user;
 
     return await this.usersvc.updateUser(id, payload);
   }

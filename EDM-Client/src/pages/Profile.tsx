@@ -7,6 +7,7 @@ import {
   hasDangerousPasswordChars,
   DANGEROUS_MSG,
   DANGEROUS_PASSWORD_MSG,
+  getPasswordErrors,
   extractErrorMessages,
   getErrorStatus,
 } from '../utils/validation';
@@ -17,7 +18,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const { user: tokenUser } = useAuth();
   const [user, setUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: '', lastName: '', username: '', password: '' });
+  const [form, setForm] = useState({ name: '', lastName: '', password: '' });
   const [errors, setErrors] = useState<string[]>([]);
   const [alertType, setAlertType] = useState<'error' | 'warning'>('warning');
   const [success, setSuccess] = useState('');
@@ -31,28 +32,32 @@ export default function Profile() {
       setForm({
         name: data.name,
         lastName: data.lastName,
-        username: data.username,
         password: '',
       });
     });
   }, [tokenUser]);
 
-  const validate = (): string | null => {
+  const validate = (): string[] => {
+    const errs: string[] = [];
     const name = form.name.trim();
     const lastName = form.lastName.trim();
-    const username = form.username.trim();
-    const password = form.password.trim();
+    const password = form.password;
 
-    if (!name) return 'El nombre no puede estar vacío';
-    if (!lastName) return 'El apellido no puede estar vacío';
-    if (!username) return 'El usuario no puede estar vacío';
+    if (!name) errs.push('El nombre no puede estar vacío');
+    if (!lastName) errs.push('El apellido no puede estar vacío');
 
-    if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
-    if (hasDangerousChars(lastName)) return `Apellido: ${DANGEROUS_MSG}`;
-    if (hasDangerousChars(username)) return `Usuario: ${DANGEROUS_MSG}`;
-    if (password && hasDangerousPasswordChars(password))
-      return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
-    return null;
+    if (name && hasDangerousChars(name)) errs.push(`Nombre: ${DANGEROUS_MSG}`);
+    if (lastName && hasDangerousChars(lastName)) errs.push(`Apellido: ${DANGEROUS_MSG}`);
+
+    // Password es opcional, pero si se escribió algo debe ser fuerte
+    if (password) {
+      if (hasDangerousPasswordChars(password)) {
+        errs.push(`Contraseña: ${DANGEROUS_PASSWORD_MSG}`);
+      }
+      errs.push(...getPasswordErrors(password));
+    }
+
+    return errs;
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -60,10 +65,10 @@ export default function Profile() {
     setErrors([]);
     setSuccess('');
 
-    const validationError = validate();
-    if (validationError) {
+    const validationErrors = validate();
+    if (validationErrors.length > 0) {
       setAlertType('warning');
-      setErrors([validationError]);
+      setErrors(validationErrors);
       return;
     }
 
@@ -74,9 +79,8 @@ export default function Profile() {
       const payload: UpdateUserDto = {
         name: form.name.trim(),
         lastName: form.lastName.trim(),
-        username: form.username.trim(),
       };
-      if (form.password.trim()) payload.password = form.password.trim();
+      if (form.password) payload.password = form.password;
 
       await updateUser(user.id, payload);
       setSuccess('Perfil actualizado correctamente');
@@ -145,13 +149,14 @@ export default function Profile() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Username <span className="text-slate-500 font-normal">(no editable)</span>
+              </label>
               <input
                 type="text"
-                value={form.username}
-                onChange={e => setForm({ ...form, username: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
+                value={user.username}
+                disabled
+                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-500 cursor-not-allowed"
               />
             </div>
             <div>
@@ -165,6 +170,9 @@ export default function Profile() {
                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="••••••••"
               />
+              <p className="text-xs text-slate-500 mt-1">
+                Si la cambias, debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo
+              </p>
             </div>
             {errors.length > 0 && (
               <Alert type={alertType} messages={errors} onClose={() => setErrors([])} />

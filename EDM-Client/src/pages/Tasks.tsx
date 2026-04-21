@@ -56,25 +56,31 @@ export default function Tasks() {
     setShowForm(true);
   };
 
-  const validateForm = (): string | null => {
+  const validateForm = (): string[] => {
+    const errs: string[] = [];
     const name = form.name.trim();
     const description = form.description.trim();
 
-    if (!name) return 'El nombre no puede estar vacío';
-    if (!description) return 'La descripción no puede estar vacía';
-    if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
-    if (hasDangerousChars(description)) return `Descripción: ${DANGEROUS_MSG}`;
-    return null;
+    if (!name) errs.push('El nombre no puede estar vacío');
+    if (!description) errs.push('La descripción no puede estar vacía');
+
+    if (name && name.length < 3) errs.push('El nombre debe tener al menos 3 caracteres');
+    if (description && description.length < 3) errs.push('La descripción debe tener al menos 3 caracteres');
+
+    if (name && hasDangerousChars(name)) errs.push(`Nombre: ${DANGEROUS_MSG}`);
+    if (description && hasDangerousChars(description)) errs.push(`Descripción: ${DANGEROUS_MSG}`);
+
+    return errs;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors([]);
 
-    const validationError = validateForm();
-    if (validationError) {
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
       setFormAlertType('warning');
-      setFormErrors([validationError]);
+      setFormErrors(validationErrors);
       return;
     }
 
@@ -130,7 +136,7 @@ export default function Tasks() {
 
         {showForm && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h2 className="text-white font-semibold text-lg mb-5">
                 {editingTask ? 'Editar tarea' : 'Nueva tarea'}
               </h2>

@@ -6,6 +6,7 @@ import {
   hasDangerousPasswordChars,
   DANGEROUS_MSG,
   DANGEROUS_PASSWORD_MSG,
+  getPasswordErrors,
   extractErrorMessages,
   getErrorStatus,
 } from '../utils/validation';
@@ -53,18 +54,26 @@ export default function Users() {
     setFormSuccess('');
   };
 
-  const validate = (): string | null => {
+  const validate = (): string[] => {
+    const errs: string[] = [];
     const name = form.name.trim();
     const lastName = form.lastName.trim();
-    const password = form.password.trim();
+    const password = form.password;
 
-    if (!name) return 'El nombre no puede estar vacío';
-    if (!lastName) return 'El apellido no puede estar vacío';
-    if (hasDangerousChars(name)) return `Nombre: ${DANGEROUS_MSG}`;
-    if (hasDangerousChars(lastName)) return `Apellido: ${DANGEROUS_MSG}`;
-    if (password && hasDangerousPasswordChars(password))
-      return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
-    return null;
+    if (!name) errs.push('El nombre no puede estar vacío');
+    if (!lastName) errs.push('El apellido no puede estar vacío');
+
+    if (name && hasDangerousChars(name)) errs.push(`Nombre: ${DANGEROUS_MSG}`);
+    if (lastName && hasDangerousChars(lastName)) errs.push(`Apellido: ${DANGEROUS_MSG}`);
+
+    if (password) {
+      if (hasDangerousPasswordChars(password)) {
+        errs.push(`Contraseña: ${DANGEROUS_PASSWORD_MSG}`);
+      }
+      errs.push(...getPasswordErrors(password));
+    }
+
+    return errs;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,10 +81,10 @@ export default function Users() {
     setFormErrors([]);
     setFormSuccess('');
 
-    const validationError = validate();
-    if (validationError) {
+    const validationErrors = validate();
+    if (validationErrors.length > 0) {
       setFormAlertType('warning');
-      setFormErrors([validationError]);
+      setFormErrors(validationErrors);
       return;
     }
 
@@ -87,7 +96,7 @@ export default function Users() {
         name: form.name.trim(),
         lastName: form.lastName.trim(),
       };
-      if (form.password.trim()) payload.password = form.password.trim();
+      if (form.password) payload.password = form.password;
 
       await updateUser(editingUser.id, payload);
       setFormSuccess('Usuario actualizado correctamente');
@@ -166,6 +175,7 @@ export default function Users() {
                 <div key={u.id} className="bg-slate-900 border border-slate-700 rounded-xl p-4">
                   <div className="flex items-start justify-between mb-3 gap-2">
                     <div className="min-w-0">
+                      <p className="text-slate-500 text-xs mb-1">#{u.id}</p>
                       <h3 className="text-white font-medium break-words">{u.name} {u.lastName}</h3>
                       <p className="text-slate-400 text-sm break-words">@{u.username}</p>
                     </div>
@@ -192,10 +202,10 @@ export default function Users() {
         {/* Modal edición admin */}
         {editingUser && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h2 className="text-white font-semibold text-lg mb-1">Editar usuario</h2>
               <p className="text-slate-500 text-xs mb-5">
-                El username no puede modificarse desde esta vista
+                El username no puede modificarse
               </p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -242,6 +252,9 @@ export default function Users() {
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     placeholder="••••••••"
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Si la cambias, debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo
+                  </p>
                 </div>
                 {formErrors.length > 0 && (
                   <Alert type={formAlertType} messages={formErrors} onClose={() => setFormErrors([])} />

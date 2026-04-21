@@ -6,6 +6,7 @@ import {
   hasDangerousPasswordChars,
   DANGEROUS_MSG,
   DANGEROUS_PASSWORD_MSG,
+  getPasswordErrors,
   extractErrorMessages,
   getErrorStatus,
 } from '../utils/validation';
@@ -24,35 +25,47 @@ export default function Register() {
   const [alertType, setAlertType] = useState<'error' | 'warning'>('warning');
   const [loading, setLoading] = useState(false);
 
-  const validate = (): string | null => {
-    const { name, lastName, username, password, confirmPassword } = form;
+  const validate = (): string[] => {
+    const errs: string[] = [];
+    const name = form.name.trim();
+    const lastName = form.lastName.trim();
+    const username = form.username.trim();
+    const password = form.password;
+    const confirmPassword = form.confirmPassword;
 
-    if (!name.trim()) return 'El nombre no puede estar vacío';
-    if (!lastName.trim()) return 'El apellido no puede estar vacío';
-    if (!username.trim()) return 'El usuario no puede estar vacío';
-    if (!password.trim()) return 'La contraseña no puede estar vacía';
-    if (!confirmPassword.trim()) return 'Debes confirmar la contraseña';
+    if (!name) errs.push('El nombre no puede estar vacío');
+    if (!lastName) errs.push('El apellido no puede estar vacío');
+    if (!username) errs.push('El usuario no puede estar vacío');
+    if (!password) errs.push('La contraseña no puede estar vacía');
+    if (!confirmPassword) errs.push('Debes confirmar la contraseña');
 
-    if (hasDangerousChars(name.trim())) return `Nombre: ${DANGEROUS_MSG}`;
-    if (hasDangerousChars(lastName.trim())) return `Apellido: ${DANGEROUS_MSG}`;
-    if (hasDangerousChars(username.trim())) return `Usuario: ${DANGEROUS_MSG}`;
-    if (hasDangerousPasswordChars(password.trim()))
-      return `Contraseña: ${DANGEROUS_PASSWORD_MSG}`;
-    if (hasDangerousPasswordChars(confirmPassword.trim()))
-      return `Confirmar contraseña: ${DANGEROUS_PASSWORD_MSG}`;
+    if (name && hasDangerousChars(name)) errs.push(`Nombre: ${DANGEROUS_MSG}`);
+    if (lastName && hasDangerousChars(lastName)) errs.push(`Apellido: ${DANGEROUS_MSG}`);
+    if (username && hasDangerousChars(username)) errs.push(`Usuario: ${DANGEROUS_MSG}`);
+    if (password && hasDangerousPasswordChars(password))
+      errs.push(`Contraseña: ${DANGEROUS_PASSWORD_MSG}`);
+    if (confirmPassword && hasDangerousPasswordChars(confirmPassword))
+      errs.push(`Confirmar contraseña: ${DANGEROUS_PASSWORD_MSG}`);
 
-    if (password !== confirmPassword) return 'Las contraseñas no coinciden';
-    return null;
+    if (password) {
+      errs.push(...getPasswordErrors(password));
+    }
+
+    if (password && confirmPassword && password !== confirmPassword) {
+      errs.push('Las contraseñas no coinciden');
+    }
+
+    return errs;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors([]);
 
-    const validationError = validate();
-    if (validationError) {
+    const validationErrors = validate();
+    if (validationErrors.length > 0) {
       setAlertType('warning');
-      setErrors([validationError]);
+      setErrors(validationErrors);
       return;
     }
 
@@ -62,7 +75,7 @@ export default function Register() {
         name: form.name.trim(),
         lastName: form.lastName.trim(),
         username: form.username.trim(),
-        password: form.password.trim(),
+        password: form.password,
       });
       navigate('/login');
     } catch (err: any) {
@@ -75,7 +88,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white">EDM</h1>
@@ -125,9 +138,12 @@ export default function Register() {
                 value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Mín. 8 caracteres, mayúscula, número y símbolo"
+                placeholder="Mín. 8 caracteres, mayús, minús, número y símbolo"
                 required
               />
+              <p className="text-xs text-slate-500 mt-1">
+                Debe incluir mayúscula, minúscula, número y símbolo
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Confirmar contraseña</label>
