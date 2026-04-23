@@ -12,12 +12,27 @@ api.interceptors.request.use((config) => {
 
 let isRefreshing = false;
 
+// Rutas donde un 401 NO debe disparar el refresh automático,
+// porque representan fallos de autenticación legítimos y no tokens expirados.
+const AUTH_ENDPOINTS = ['/api/auth/login', '/api/auth/refresh'];
+
+function isAuthEndpoint(url?: string): boolean {
+  if (!url) return false;
+  return AUTH_ENDPOINTS.some(endpoint => url.includes(endpoint));
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original._retry) {
+    // Si el 401 viene de login/refresh, no intentamos refrescar: dejamos
+    // que el componente maneje el error directamente.
+    if (
+      error.response?.status === 401 &&
+      !original._retry &&
+      !isAuthEndpoint(original.url)
+    ) {
       if (isRefreshing) {
         localStorage.clear();
         window.location.href = '/login';
