@@ -1,7 +1,16 @@
 import { Navigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const token = localStorage.getItem('access_token');
-  if (!token) return <Navigate to="/login" replace />;
+interface Props {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+}
+
+export default function ProtectedRoute({ children, requireAdmin }: Props) {
+  const { isAuthenticated, isAdmin } = useAuth();
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (requireAdmin && !isAdmin) return <Navigate to="/" replace />;
+
   return <>{children}</>;
 }

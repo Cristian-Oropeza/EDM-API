@@ -10,8 +10,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    getAllTasks()
-      .then(data => setTasks(data.filter(t => t.user_id === user.id)))
+    getAllTasks(true) // ← siempre mine=true en dashboard
+      .then(data => setTasks(data))
       .finally(() => setLoading(false));
   }, [user]);
 

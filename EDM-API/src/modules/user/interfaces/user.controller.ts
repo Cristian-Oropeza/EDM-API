@@ -29,7 +29,13 @@ export class UserController {
 
   @Get('')
   @UseGuards(AuthGuard)
-  async getAllUsers(): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>[]> {
+  async getAllUsers(
+    @Req() req: any,
+  ): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>[]> {
+    if (req.user.role !== 'admin') {
+      const self = await this.usersvc.getUserById(req.user.id);
+      return self ? [self] : [];
+    }
     return await this.usersvc.getAllUsers();
   }
 
@@ -37,7 +43,14 @@ export class UserController {
   @UseGuards(AuthGuard)
   public async getUserById(
     @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
   ): Promise<Omit<User, 'password' | 'refreshToken' | 'role'>> {
+    if (req.user.role !== 'admin' && req.user.id !== id) {
+      throw new ForbiddenException({
+        message: 'No tienes permiso para ver este usuario',
+        errorCode: 'FORBIDDEN_USER_READ',
+      });
+    }
     const result = await this.usersvc.getUserById(id);
     if (!result) {
       throw new HttpException(
@@ -99,7 +112,7 @@ export class UserController {
     @Param('id', ParseIntPipe) id: number,
     @Req() req: any,
   ): Promise<boolean> {
-    if (req.user.id !== id) {
+    if (req.user.id !== id && req.user.role !== 'admin') {
       await this.logsSvc.createLog({
         status_code: 403,
         path: `/api/user/${id}`,

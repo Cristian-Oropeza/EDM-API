@@ -1,8 +1,10 @@
 import api from '../api/client';
 import type { CreateTaskDto, Task, UpdateTaskDto } from '../types';
 
-export async function getAllTasks(): Promise<Task[]> {
-  const { data } = await api.get<Task[]>('/api/task');
+export async function getAllTasks(mine?: boolean): Promise<Task[]> {
+  const { data } = await api.get<Task[]>('/api/task', {
+    params: mine ? { mine: 'true' } : undefined,
+  });
   return data;
 }
 

@@ -10,10 +10,13 @@ export class TaskService {
     private prisma: PrismaService
   ) {}
 
-  public async getAllTasks(): Promise<Task[]> {
-    const task = await this.prisma.task.findMany({ orderBy: { name: 'asc' } });
-    return task;
-  }
+public async getAllTasks(userId?: number): Promise<Task[]> {
+  const task = await this.prisma.task.findMany({
+    where: userId ? { user_id: userId } : undefined,
+    orderBy: { name: 'asc' },
+  });
+  return task;
+}
 
   public async getTaskById(id: number): Promise<Task | null> {
     const task = await this.prisma.task.findUnique({ where: { id } });

@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -28,10 +29,19 @@ export class TaskController {
     private readonly logsSvc: LogsService,
   ) {}
 
-  @Get('')
-  async getAllTasks(): Promise<Task[]> {
-    return await this.tasksvc.getAllTasks();
-  }
+@Get('')
+async getAllTasks(
+  @Req() req: any,
+  @Query('mine') mine?: string,
+): Promise<Task[]> {
+  const isAdmin = req.user.role === 'admin';
+  const forceOwn = mine === 'true';
+
+  // Admin ve todas, salvo que pida ?mine=true.
+  // Usuario normal siempre ve solo las suyas.
+  const userId = (!isAdmin || forceOwn) ? req.user.id : undefined;
+  return await this.tasksvc.getAllTasks(userId);
+}
 
   @Get(':id')
   public async getTaskById(
@@ -79,19 +89,19 @@ export class TaskController {
       );
     }
 
-    if (result.user_id !== req.user.id) {
-      await this.logsSvc.createLog({
-        status_code: 403,
-        path: `/api/task/${id}`,
-        error: 'Intento de editar tarea ajena',
-        error_code: 'FORBIDDEN_TASK_UPDATE',
-        session_id: req.user.id,
-      });
-      throw new ForbiddenException({
-        message: 'No tienes permiso para editar esta tarea',
-        errorCode: 'FORBIDDEN_TASK_UPDATE',
-      });
-    }
+  if (result.user_id !== req.user.id && req.user.role !== 'admin') {
+    await this.logsSvc.createLog({
+      status_code: 403,
+      path: `/api/task/${id}`,
+      error: 'Intento de editar tarea ajena',
+      error_code: 'FORBIDDEN_TASK_UPDATE',
+      session_id: req.user.id,
+    });
+    throw new ForbiddenException({
+      message: 'No tienes permiso para editar esta tarea',
+      errorCode: 'FORBIDDEN_TASK_UPDATE',
+    });
+  }
 
     return await this.tasksvc.updateTask(id, task);
   }
@@ -110,7 +120,7 @@ export class TaskController {
       );
     }
 
-    if (result.user_id !== req.user.id) {
+    if (result.user_id !== req.user.id && req.user.role !== 'admin') {
       await this.logsSvc.createLog({
         status_code: 403,
         path: `/api/task/${id}`,

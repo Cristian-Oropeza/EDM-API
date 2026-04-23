@@ -76,5 +76,7 @@ export interface LogFilters {
   startDate?: string;
   endDate?: string;
   session_id?: number;
+  username?: string;
   error_code?: string;
+  onlyAnonymous?: boolean;
 }

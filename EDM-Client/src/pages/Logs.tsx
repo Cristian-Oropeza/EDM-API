@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getLogs } from '../services/logs.service';
 import Alert from '../components/Alert';
 import type { Log, LogFilters } from '../types';
+import { ERROR_CODES } from '../utils/error-codes';
 
 export default function Logs() {
   const [logs, setLogs] = useState<Log[]>([]);
@@ -10,13 +11,15 @@ export default function Logs() {
   const [filters, setFilters] = useState<{
     startDate: string;
     endDate: string;
-    session_id: string;
+    username: string;
     error_code: string;
+    onlyAnonymous: boolean;
   }>({
     startDate: '',
     endDate: '',
-    session_id: '',
+    username: '',
     error_code: '',
+    onlyAnonymous: false,
   });
 
   const fetchLogs = async (applied?: LogFilters) => {
@@ -40,21 +43,21 @@ export default function Logs() {
     const applied: LogFilters = {};
     if (filters.startDate) applied.startDate = new Date(filters.startDate).toISOString();
     if (filters.endDate) {
-      // Incluir el día completo del endDate (hasta las 23:59:59)
       const end = new Date(filters.endDate);
       end.setHours(23, 59, 59, 999);
       applied.endDate = end.toISOString();
     }
-    if (filters.session_id) {
-      const n = Number(filters.session_id);
-      if (!isNaN(n) && n > 0) applied.session_id = n;
+    if (filters.onlyAnonymous) {
+      applied.onlyAnonymous = true;
+    } else if (filters.username.trim()) {
+      applied.username = filters.username.trim();
     }
-    if (filters.error_code.trim()) applied.error_code = filters.error_code.trim();
+    if (filters.error_code) applied.error_code = filters.error_code;
     fetchLogs(applied);
   };
 
   const handleClear = () => {
-    setFilters({ startDate: '', endDate: '', session_id: '', error_code: '' });
+    setFilters({ startDate: '', endDate: '', username: '', error_code: '', onlyAnonymous: false });
     fetchLogs();
   };
 
@@ -95,26 +98,41 @@ export default function Logs() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Session ID</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Username</label>
               <input
-                type="number"
-                min="1"
-                value={filters.session_id}
-                onChange={e => setFilters({ ...filters, session_id: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Ej: 5"
+                type="text"
+                value={filters.username}
+                disabled={filters.onlyAnonymous}
+                onChange={e => setFilters({ ...filters, username: e.target.value })}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="Ej: cristian.oropeza"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Error code</label>
-              <input
-                type="text"
+              <label className="block text-xs font-medium text-slate-400 mb-1">Código de error</label>
+              <select
                 value={filters.error_code}
                 onChange={e => setFilters({ ...filters, error_code: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Ej: INVALID_CREDENTIALS"
-              />
+              >
+                <option value="">Todos</option>
+                {ERROR_CODES.map(code => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
             </div>
+          </div>
+          <div className="flex items-center gap-3 mt-4">
+            <input
+              type="checkbox"
+              id="onlyAnonymous"
+              checked={filters.onlyAnonymous}
+              onChange={e => setFilters({ ...filters, onlyAnonymous: e.target.checked, username: '' })}
+              className="w-4 h-4 accent-indigo-500"
+            />
+            <label htmlFor="onlyAnonymous" className="text-slate-300 text-sm">
+              Solo logs sin usuario registrado
+            </label>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             <button

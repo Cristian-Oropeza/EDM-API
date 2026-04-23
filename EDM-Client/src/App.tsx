@@ -34,7 +34,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/users" element={
-          <ProtectedRoute>
+          <ProtectedRoute requireAdmin>
             <Navbar />
             <Users />
           </ProtectedRoute>

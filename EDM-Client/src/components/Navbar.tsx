@@ -17,8 +17,8 @@ export default function Navbar() {
   const links = [
     { to: '/', label: 'Dashboard' },
     { to: '/tasks', label: 'Tareas' },
-    { to: '/users', label: 'Usuarios' },
-    ...(isAdmin ? [{ to: '/logs', label: 'Logs' }] : []),
+    ...(isAdmin ? [{ to: '/users', label: 'Usuarios' }] : []),
+    { to: '/logs', label: 'Logs' },
     { to: '/profile', label: 'Perfil' },
   ];
 
